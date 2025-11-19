@@ -150,7 +150,9 @@ class TensorFlowSequenceGestureClassifier:
             try:
                 with candidate.open("r", encoding="utf-8") as fp:
                     raw = json.load(fp)
-                return {int(idx): self._canonical_label(label) for label, idx in raw.items()}
+                mapping = {int(idx): self._canonical_label(label) for label, idx in raw.items()}
+                LOGGER.info("labels.json cargado (%d etiquetas) desde %s", len(mapping), candidate)
+                return mapping
             except Exception as error:
                 LOGGER.warning("labels.json corrupto en %s: %s", candidate, error)
 
