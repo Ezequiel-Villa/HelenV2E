@@ -188,6 +188,8 @@ def _resolve_repo_root() -> Path:
 REPO_ROOT = _resolve_repo_root()
 FRONTEND_ROOT = REPO_ROOT / "helen"
 TF_MODEL_BASE_DIR = REPO_ROOT / "Hellen_model_TF" / "video_gesture_model" / "data" / "models"
+PREFERRED_TF_MODEL_DIRNAME = "gesture_model_20251031_183504"
+PREFERRED_TF_MODEL_DIR = TF_MODEL_BASE_DIR / PREFERRED_TF_MODEL_DIRNAME
 
 # port: int = 5000  # Referencia para pruebas de integración (mantener sincronizado con run()).
 
@@ -241,7 +243,29 @@ LSTM_BACKEND_ACTIVE = RUNTIME_MODEL_CONFIG.effective_backend == "lstm"
 
 
 def _default_tf_model_dir() -> Path:
-    """Pick the newest TensorFlow SavedModel shipped with the repository."""
+    """Return the trained TensorFlow SavedModel requested by operaciones."""
+
+    preferred = PREFERRED_TF_MODEL_DIR
+    preferred_saved_model = preferred / "saved_model.pb"
+    preferred_labels = preferred / "labels.json"
+
+    if preferred_saved_model.exists():
+        if not preferred_labels.exists():
+            LOGGER.warning(
+                "labels.json faltante en %s; asegúrate de copiar el archivo entrenado correcto.",
+                preferred,
+            )
+        else:
+            LOGGER.info(
+                "Usando SavedModel entrenado %s con labels.json dedicado.",
+                preferred,
+            )
+        return preferred
+
+    LOGGER.warning(
+        "El modelo preferido %s no se encontró; buscando SavedModel disponible más reciente.",
+        preferred,
+    )
 
     if not TF_MODEL_BASE_DIR.exists():
         return TF_MODEL_BASE_DIR
@@ -258,7 +282,7 @@ def _default_tf_model_dir() -> Path:
     return sorted(candidates, key=lambda item: item.stat().st_mtime, reverse=True)[0]
 
 
-TRACKED_GESTURES = {"Start", "Clima", "Reloj", "Inicio"}
+TRACKED_GESTURES = {"Start", "Clima", "Reloj", "Inicio", "Alarma", "Ajustes", "Dispositivos", "Tutorial", "Foco"}
 # Tabla de alias entre las etiquetas de labels.json (ej. "activar", "clima") y
 # las etiquetas canónicas que consume la DecisionEngine (Start, Clima, Reloj,
 # Inicio). Mantener sincronizada con ``_LABEL_NORMALIZATION`` en
@@ -274,6 +298,15 @@ MODEL_LABEL_ALIASES: Dict[str, str] = {
     "clock": "Reloj",
     "home": "Inicio",
     "inicio": "Inicio",
+    "alarma": "Alarma",
+    "alarmas": "Alarma",
+    "configuracion": "Ajustes",
+    "ajustes": "Ajustes",
+    "settings": "Ajustes",
+    "dispositivos": "Dispositivos",
+    "devices": "Dispositivos",
+    "tutorial": "Tutorial",
+    "foco": "Foco",
 }
 GESTURE_ALIASES = {"Start": "H", "Clima": "C", "Reloj": "R", "Inicio": "I"}
 
@@ -3886,6 +3919,18 @@ class HelenRequestHandler(SimpleHTTPRequestHandler):
     def __init__(self, *args: Any, runtime: HelenRuntime, **kwargs: Any) -> None:
         self.runtime = runtime
         super().__init__(*args, directory=str(FRONTEND_ROOT), **kwargs)
+
+    def end_headers(self) -> None:  # noqa: D401 - inherited API
+        """Inyecta encabezados CORS en todas las respuestas HTTP."""
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        super().end_headers()
+
+    # ------------------------------------------------------------------
+    def do_OPTIONS(self) -> None:  # noqa: D401 - inherited API
+        self.send_response(HTTPStatus.NO_CONTENT)
+        self.end_headers()
 
     def _write_json(self, payload: Dict[str, Any], status: HTTPStatus = HTTPStatus.OK) -> None:
         body = json.dumps(payload).encode("utf-8")
