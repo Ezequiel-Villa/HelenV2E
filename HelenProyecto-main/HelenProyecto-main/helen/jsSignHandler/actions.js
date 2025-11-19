@@ -86,7 +86,8 @@ const gestureActions = {
     configuracion: () => goToSettings(),
     dispositivos: () => goToDevices(),
     foco: () => goToDevices(),
-    devices: () => goToDevices()
+    devices: () => goToDevices(),
+    tutorial: () => goToTutorial()
 };
 
 const triggerActivationRing = (options = {}) => {
