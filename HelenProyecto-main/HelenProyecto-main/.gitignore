@@ -7,3 +7,5 @@ reports/logs/*
 !reports/logs/win/
 !reports/logs/pi/.gitkeep
 !reports/logs/win/.gitkeep
+.venv/
+reports/
